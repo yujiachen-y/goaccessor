@@ -3,12 +3,21 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
+var debug *log.Logger
+
 func init() {
+	if os.Getenv("DEBUG") != "" {
+		debug = log.New(os.Stderr, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
+	} else {
+		debug = log.New(ioutil.Discard, "", 0)
+	}
 	log.SetFlags(0)
 	log.SetPrefix("goaccessor: ")
 
@@ -30,11 +39,11 @@ func init() {
 	flag.Parse()
 
 	if len(*s) != 0 {
-		flagSymbol = *s
+		flagSymbols = strings.Split(*s, ",")
 	} else if len(*symbol) != 0 {
-		flagSymbol = *symbol
+		flagSymbols = strings.Split(*symbol, ",")
 	}
-	if len(flagSymbol) == 0 {
+	if len(flagSymbols) == 0 {
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -62,11 +71,28 @@ func init() {
 }
 
 var (
-	flagSymbol string
-	flagGetter bool
-	argDir     string
+	flagSymbols []string
+	flagGetter  bool
+	argDir      string
 )
 
 func main() {
-	log.Printf("flagSymbol %s\nflagGetter %t\nargDir %s\n", flagSymbol, flagGetter, argDir)
+	log.Printf("Received arguments:\n")
+	log.Printf("\t\tflagSymbols %s\n", flagSymbols)
+	log.Printf("\t\tflagGetter %t\n", flagGetter)
+	log.Printf("\t\targDir %s\n", argDir)
+
+	generators, err := NewGenerators(flagSymbols, argDir)
+	if err != nil {
+		log.Fatalf("Failed to create generators, error: %s", err.Error())
+	}
+
+	log.Println()
+	for _, generator := range generators {
+		log.Printf("generate %s ...\n", generator.Name)
+		err := generator.Generate(WithGetter(flagGetter))
+		if err != nil {
+			log.Fatalf("Failed to generate, error: %s", err.Error())
+		}
+	}
 }
