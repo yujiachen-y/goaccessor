@@ -21,35 +21,48 @@ func init() {
 	log.SetFlags(0)
 	log.SetPrefix("goaccessor: ")
 
-	s := flag.String("s", "", "")
-	symbol := flag.String("symbol", "", "")
+	t := flag.String("t", "", "")
+	target := flag.String("target", "", "")
 	g := flag.Bool("g", false, "")
 	getter := flag.Bool("getter", false, "")
+	s := flag.Bool("s", false, "")
+	setter := flag.Bool("setter", false, "")
+	a := flag.Bool("a", false, "")
+	accessor := flag.Bool("accessor", false, "")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of goaccessor:\n")
-		fmt.Fprintf(os.Stderr, "\t--symbol -s string\n")
-		fmt.Fprintf(os.Stderr, "\t\tSpecify the symbol to be handled.\n")
+		fmt.Fprintf(os.Stderr, "\t--target -t string\n")
+		fmt.Fprintf(os.Stderr, "\t\tSpecify the target to be handled.\n")
 		fmt.Fprintf(os.Stderr, "\t--getter -g getter\n")
-		fmt.Fprintf(os.Stderr, "\t\tGenerate `getter` for the symbol.\n")
+		fmt.Fprintf(os.Stderr, "\t\tGenerate `getter` for the target.\n")
+		fmt.Fprintf(os.Stderr, "\t--setter -s getter\n")
+		fmt.Fprintf(os.Stderr, "\t\tGenerate `setter` for the target.\n")
+		fmt.Fprintf(os.Stderr, "\t--accessor -a getter\n")
+		fmt.Fprintf(os.Stderr, "\t\tGenerate `accessor` for the target.\n")
 		fmt.Fprintf(os.Stderr, "For more information, see:\n")
 		fmt.Fprintf(os.Stderr, "\thttps://www.github.com/yjc567/goaccessor\n")
 	}
 
 	flag.Parse()
 
-	if len(*s) != 0 {
-		flagSymbols = strings.Split(*s, ",")
-	} else if len(*symbol) != 0 {
-		flagSymbols = strings.Split(*symbol, ",")
+	if len(*t) != 0 {
+		flagTargets = strings.Split(*t, ",")
+	} else if len(*target) != 0 {
+		flagTargets = strings.Split(*target, ",")
 	}
-	if len(flagSymbols) == 0 {
+	if len(flagTargets) == 0 {
 		flag.Usage()
 		os.Exit(2)
 	}
 
 	flagGetter = *g || *getter
-	if !flagGetter {
+	flagSetter = *s || *setter
+	if *a || *accessor {
+		flagGetter = true
+		flagSetter = true
+	}
+	if !flagGetter && !flagSetter {
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -71,18 +84,19 @@ func init() {
 }
 
 var (
-	flagSymbols []string
+	flagTargets []string
 	flagGetter  bool
+	flagSetter  bool
 	argDir      string
 )
 
 func main() {
 	log.Printf("Received arguments:\n")
-	log.Printf("\t\tflagSymbols %s\n", flagSymbols)
+	log.Printf("\t\tflagTargets %s\n", flagTargets)
 	log.Printf("\t\tflagGetter %t\n", flagGetter)
 	log.Printf("\t\targDir %s\n", argDir)
 
-	generators, err := NewGenerators(flagSymbols, argDir)
+	generators, err := NewGenerators(flagTargets, argDir)
 	if err != nil {
 		log.Fatalf("Failed to create generators, error: %s", err.Error())
 	}
@@ -90,7 +104,7 @@ func main() {
 	log.Println()
 	for _, generator := range generators {
 		log.Printf("generate %s ...\n", generator.Name)
-		err := generator.Generate(WithGetter(flagGetter))
+		err := generator.Generate(WithGetter(flagGetter), WithSetter(flagSetter))
 		if err != nil {
 			log.Fatalf("Failed to generate, error: %s", err.Error())
 		}

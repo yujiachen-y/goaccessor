@@ -21,14 +21,14 @@ type generatorFactory struct {
 	lastType string
 }
 
-func NewGenerators(symbols []string, dir string) ([]*Generator, error) {
+func NewGenerators(targets []string, dir string) ([]*Generator, error) {
 	factory := &generatorFactory{dir: dir}
 
 	if err := factory.walkDir(factory.inspectPkg); err != nil {
 		return nil, fmt.Errorf("factory.walkDir: %w", err)
 	}
 
-	if err := factory.initGenerators(symbols); err != nil {
+	if err := factory.initGenerators(targets); err != nil {
 		return nil, fmt.Errorf("factory.initGenerators: %w", err)
 	}
 
@@ -51,10 +51,13 @@ func (f *generatorFactory) walkDir(fn func(file *ast.File) error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
-			return nil
+		if info.IsDir() && path != f.dir {
+			return filepath.SkipDir
 		}
 		if filepath.Ext(info.Name()) != ".go" {
+			return nil
+		}
+		if strings.HasSuffix(info.Name(), "_goaccessor.go") {
 			return nil
 		}
 		f.curFset = token.NewFileSet()
@@ -62,6 +65,7 @@ func (f *generatorFactory) walkDir(fn func(file *ast.File) error) error {
 		if err != nil {
 			return fmt.Errorf("parser.ParseFile %s: %w", path, err)
 		}
+		debug.Printf("begin to parse file %s\n", path)
 		return fn(file)
 	})
 }
@@ -76,15 +80,15 @@ func (f *generatorFactory) inspectPkg(file *ast.File) error {
 	return nil
 }
 
-func (f *generatorFactory) initGenerators(symbols []string) error {
-	if len(symbols) == 0 || f.dir == "" || f.pkg == "" {
-		return fmt.Errorf("these fields must be non-empty, symbols %s, f.dir %s, f.pkg %s", symbols, f.dir, f.pkg)
+func (f *generatorFactory) initGenerators(targets []string) error {
+	if len(targets) == 0 || f.dir == "" || f.pkg == "" {
+		return fmt.Errorf("these fields must be non-empty, targets %s, f.dir %s, f.pkg %s", targets, f.dir, f.pkg)
 	}
 
-	generators := make(map[string]*Generator, len(symbols))
-	for _, symbol := range symbols {
-		generators[symbol] = &Generator{
-			Name: symbol,
+	generators := make(map[string]*Generator, len(targets))
+	for _, target := range targets {
+		generators[target] = &Generator{
+			Name: target,
 			Dir:  f.dir,
 			Pkg:  f.pkg,
 		}
@@ -167,13 +171,21 @@ func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 			case *ast.BasicLit:
 				kind = v.Kind.String()
 			case *ast.UnaryExpr:
-				if bl, ok := v.X.(*ast.BasicLit); ok {
-					kind = bl.Kind.String()
+				s, err := f.parseUnaryExpression(v)
+				if err != nil {
+					return fmt.Errorf("f.parseUnaryExpression: %w", err)
 				}
+				kind = s
 			case *ast.Ident: // case for iota
 				if v.Name == "iota" {
 					kind = "INT"
 				}
+			case *ast.CompositeLit:
+				s, err := parseNode(f.curFset, v.Type)
+				if err != nil {
+					return fmt.Errorf("parseNode: %w", err)
+				}
+				kind = s
 			}
 
 			switch kind {
@@ -187,6 +199,8 @@ func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 				generator.Type = "rune"
 			case "STRING":
 				generator.Type = "string"
+			default:
+				generator.Type = kind
 			}
 		}
 		generator.Type = strings.TrimSpace(generator.Type)
@@ -198,6 +212,29 @@ func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 		f.lastType = generator.Type
 	}
 	return nil
+}
+
+func (f *generatorFactory) parseUnaryExpression(expr *ast.UnaryExpr) (string, error) {
+	var kind string
+	switch v := expr.X.(type) {
+	case *ast.BasicLit:
+		kind = v.Kind.String()
+	case *ast.CompositeLit:
+		s, err := parseNode(f.curFset, v.Type)
+		if err != nil {
+			return "", fmt.Errorf("parseNode: %w", err)
+		}
+		kind = s
+	default:
+		return "", fmt.Errorf("unsupported expression type: %T", v)
+	}
+	if kind == "" {
+		return "", nil
+	}
+	if expr.Op == token.AND {
+		kind = "*" + kind
+	}
+	return kind, nil
 }
 
 func (f *generatorFactory) inspectTypeSpec(spec *ast.TypeSpec) error {

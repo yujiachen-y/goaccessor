@@ -1,26 +1,32 @@
-// const_test goaccessor supports generating code for constants, however we
+// consttest goaccessor supports generating code for constants, however we
 // don't recommend to do so.
-package const_test
+package consttest
 
-//go:generate goaccessor -s Pi -g
+import (
+	"testing"
+
+	"github.com/yjc567/goaccessor/test/utils"
+)
+
+//go:generate goaccessor -t Pi -g
 const Pi float64 = 3.14159265358979323846
 
-//go:generate goaccessor -s zero -g
+//go:generate goaccessor -t zero -g
 const zero = 0.0 // untyped floating-point constant
 
-//go:generate goaccessor -s a,b,c -g
+//go:generate goaccessor -t a,b,c -g
 const a, b, c = 3, 4, "foo" // a = 3, b = 4, c = "foo", untyped integer and string constants
 
-//go:generate goaccessor -s u,v -g
+//go:generate goaccessor -t u,v -g
 const u, v float32 = 0, 3 // u = 0.0, v = 3.0
 
-//go:generate goaccessor -s size,eof -g
+//go:generate goaccessor -t size,eof -g
 const (
 	size int64 = 1024
 	eof        = -1 // untyped integer constant
 )
 
-//go:generate goaccessor -s Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Partyday,numberOfDays -g
+//go:generate goaccessor -t Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Partyday,numberOfDays -g
 const (
 	Sunday = iota
 	Monday
@@ -60,3 +66,29 @@ const iΘ = complex(0, Θ)   // iΘ == 1i     (type complex128)
 const Huge = 1 << 100         // Huge == 1267650600228229401496703205376  (untyped integer constant)
 const Four int8 = Huge >> 98  // Four == 4                                (type int8)
 */
+
+func TestConstGet(t *testing.T) {
+	for _, verifier := range []utils.Verifier{
+		utils.NewGetterVerifier(GetPi, Pi),
+		utils.NewGetterVerifier(GetZero, zero),
+		utils.NewGetterVerifier(GetA, a),
+		utils.NewGetterVerifier(GetB, b),
+		utils.NewGetterVerifier(GetC, c),
+		utils.NewGetterVerifier(GetU, u),
+		utils.NewGetterVerifier(GetV, v),
+		utils.NewGetterVerifier(GetSize, size),
+		utils.NewGetterVerifier(GetEof, eof),
+		utils.NewGetterVerifier(GetSunday, Sunday),
+		utils.NewGetterVerifier(GetMonday, Monday),
+		utils.NewGetterVerifier(GetTuesday, Tuesday),
+		utils.NewGetterVerifier(GetWednesday, Wednesday),
+		utils.NewGetterVerifier(GetThursday, Thursday),
+		utils.NewGetterVerifier(GetFriday, Friday),
+		utils.NewGetterVerifier(GetPartyday, Partyday),
+		utils.NewGetterVerifier(GetNumberOfDays, numberOfDays),
+	} {
+		if err := verifier(); err != nil {
+			t.Errorf("got err: %s", err.Error())
+		}
+	}
+}
