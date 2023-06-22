@@ -1,18 +1,18 @@
 package vartest
 
-//go:generate goaccessor -t i -a
+//go:generate go run ../../. -t i -a
 var i int
 
-//go:generate goaccessor -t A,B,C -a
+//go:generate go run ../../. -t A,B,C -a
 var A, B, C float64
 
-//go:generate goaccessor -t k -a
+//go:generate go run ../../. -t k -a
 var k = 0
 
-//go:generate goaccessor -t x,y -a
+//go:generate go run ../../. -t x,y -a
 var x, y float32 = -1, -2
 
-//go:generate goaccessor -t j,u,v,s -a
+//go:generate go run ../../. -t j,u,v,s -a
 var (
 	j       int
 	u, v, s = 2.0, 3.0, "bar"
@@ -20,19 +20,19 @@ var (
 
 type Struct struct{}
 
-//go:generate goaccessor -t s1,s2 -a
+//go:generate go run ../../. -t s1,s2 -a
 var (
 	s1 = []int{1, 2, 3}
 	s2 []Struct
 )
 
-//go:generate goaccessor -t m1,m2 -a
+//go:generate go run ../../. -t m1,m2 -a
 var (
 	m1 = map[string]struct{}{}
 	m2 map[int]*Struct
 )
 
-//go:generate goaccessor -t hello,world -a
+//go:generate go run ../../. -t hello,world -a
 var hello = &struct{ hello string }{}
 var world *Struct
 

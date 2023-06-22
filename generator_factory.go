@@ -17,11 +17,12 @@ type generatorFactory struct {
 	pkg        string
 	generators map[string]*Generator
 
-	curFset  *token.FileSet
-	lastType string
+	curFileName string
+	curFset     *token.FileSet
+	lastType    string
 }
 
-func NewGenerators(targets []string, dir string) ([]*Generator, error) {
+func NewGenerators(targets []string, dir string, field bool) ([]*Generator, error) {
 	factory := &generatorFactory{dir: dir}
 
 	if err := factory.walkDir(factory.inspectPkg); err != nil {
@@ -34,6 +35,21 @@ func NewGenerators(targets []string, dir string) ([]*Generator, error) {
 
 	if err := factory.walkDir(factory.inspectDeclaration); err != nil {
 		return nil, fmt.Errorf("factory.walkDir: %w", err)
+	}
+
+	if field {
+		variables, err := factory.replaceVariableGenerators()
+		if err != nil {
+			return nil, fmt.Errorf("factory.replaceVariableGenerators: %w", err)
+		}
+
+		if err := factory.walkDir(factory.inspectDeclaration); err != nil {
+			return nil, fmt.Errorf("factory.walkDir: %w", err)
+		}
+
+		if err := factory.insertVariablesGenerators(variables); err != nil {
+			return nil, fmt.Errorf("insertVariablesGenerators: %w", err)
+		}
 	}
 
 	var result []*Generator
@@ -60,6 +76,7 @@ func (f *generatorFactory) walkDir(fn func(file *ast.File) error) error {
 		if strings.HasSuffix(info.Name(), "_goaccessor.go") {
 			return nil
 		}
+		f.curFileName = strings.TrimSuffix(info.Name(), ".go")
 		f.curFset = token.NewFileSet()
 		file, err := parser.ParseFile(f.curFset, path, nil, parser.ParseComments)
 		if err != nil {
@@ -91,12 +108,93 @@ func (f *generatorFactory) initGenerators(targets []string) error {
 			Name:    target,
 			Dir:     f.dir,
 			Pkg:     f.pkg,
-			Fields:  make(map[string]string),
+			Fields:  make([]Field, 0),
 			Methods: make(map[string]struct{}),
 		}
 	}
 
 	f.generators = generators
+	return nil
+}
+
+func (f *generatorFactory) replaceVariableGenerators() (variables map[string]*Generator, err error) {
+	variables = f.generators
+	types := make(map[string]*Generator, len(variables))
+	for _, v := range variables {
+		if v.GeneratorType != GeneratorTypeVariable {
+			return nil, fmt.Errorf("unexpected variable generator type %s", v.GeneratorType)
+		}
+
+		referType := v.Type
+		// simple solution for type parameter
+		if idx := strings.Index(referType, "["); idx != -1 {
+			referType = referType[:idx]
+		}
+		// simple solution for pointer type
+		referType = strings.TrimPrefix(referType, "*")
+		if _, ok := types[referType]; ok {
+			continue
+		}
+
+		types[referType] = &Generator{
+			Name:    referType,
+			Dir:     f.dir,
+			Pkg:     f.pkg,
+			Fields:  make([]Field, 0),
+			Methods: make(map[string]struct{}),
+		}
+		debug.Printf("Replace variable %+v with %+v\n", v, types[referType])
+	}
+	f.generators = types
+	return
+}
+
+func (f *generatorFactory) insertVariablesGenerators(variables map[string]*Generator) error {
+	newVariables := make(map[string]*Generator, len(variables))
+	for k, v := range variables {
+		if v.GeneratorType != GeneratorTypeVariable {
+			return fmt.Errorf("unexpected variable generator type %s", v.GeneratorType)
+		}
+
+		// skip anonymous types
+		if len(v.Fields) > 0 {
+			v.GeneratorType = GeneratorTypeField
+			newVariables[k] = v
+			continue
+		}
+
+		referType := v.Type
+		// simple solution for type parameter
+		if idx := strings.Index(referType, "["); idx != -1 {
+			referType = referType[:idx]
+		}
+		// simple solution for pointer type
+		referType = strings.TrimPrefix(referType, "*")
+		t, ok := f.generators[referType]
+		if !ok {
+			continue
+		}
+
+		if t.GeneratorType != GeneratorTypeStructure {
+			return fmt.Errorf("unexpected structure generator type %s", t.GeneratorType)
+		}
+
+		newVariables[k] = &Generator{
+			Name:          k,
+			Dir:           v.Dir,
+			Pkg:           v.Pkg,
+			Type:          referType,
+			TypeParams:    t.TypeParams,
+			TypeArguments: v.TypeArguments,
+			ReceiverName:  t.ReceiverName,
+			Fields:        t.Fields,
+			Methods:       t.Methods,
+			GeneratorType: GeneratorTypeField,
+			FileName:      v.FileName,
+		}
+		debug.Printf("Insert new variable %+v\n", newVariables[k])
+	}
+	f.generators = newVariables
 	return nil
 }
 
@@ -138,14 +236,31 @@ func (f *generatorFactory) inspectGenericDeclaration(decl *ast.GenDecl) error {
 	return nil
 }
 
+// TODO refactor this
 func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 	var specType string
+	var typeArguments []string
+	var fields []Field
 	if t := spec.Type; t != nil {
 		s, err := parseNode(f.curFset, t)
 		if err != nil {
 			return fmt.Errorf("parseNode: %w", err)
 		}
 		specType = s
+
+		if expr, ok := t.(*ast.StarExpr); ok {
+			t = expr.X
+		}
+		// handler type arguments
+		typeArguments = parseTypeArguments(t)
+
+		// handler anonymous structs
+		if structType, ok := t.(*ast.StructType); ok {
+			fields, err = f.parseFields(structType.Fields.List)
+			if err != nil {
+				return fmt.Errorf("f.parseFields: %w", err)
+			}
+		}
 	}
 
 	lit, _ := parseNode(f.curFset, spec)
@@ -158,6 +273,7 @@ func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 			continue
 		}
 
+		generator.FileName = f.curFileName
 		generator.GeneratorType = GeneratorTypeVariable
 		generator.Type = specType
 		if generator.Type == "" {
@@ -179,6 +295,20 @@ func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 					return fmt.Errorf("f.parseUnaryExpression: %w", err)
 				}
 				kind = s
+
+				if lit, ok := v.X.(*ast.CompositeLit); ok {
+					// handler type arguments
+					debug.Printf("type of lit.Type is %T", lit.Type)
+					generator.TypeArguments = parseTypeArguments(lit.Type)
+					// handler anonymous struct fields
+					if structType, ok := lit.Type.(*ast.StructType); ok {
+						fields, err := f.parseFields(structType.Fields.List)
+						if err != nil {
+							return fmt.Errorf("f.parseFields: %w", err)
+						}
+						generator.Fields = fields
+					}
+				}
 			case *ast.Ident: // case for iota
 				if v.Name == "iota" {
 					kind = "INT"
@@ -189,6 +319,17 @@ func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 					return fmt.Errorf("parseNode: %w", err)
 				}
 				kind = s
+
+				// handler type arguments
+				generator.TypeArguments = parseTypeArguments(v.Type)
+				// handler anonymous struct fields
+				if structType, ok := v.Type.(*ast.StructType); ok {
+					fields, err := f.parseFields(structType.Fields.List)
+					if err != nil {
+						return fmt.Errorf("f.parseFields: %w", err)
+					}
+					generator.Fields = fields
+				}
 			}
 
 			switch kind {
@@ -213,6 +354,13 @@ func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 		}
 		debug.Printf("Type of '%s' is %s\n", name.Name, generator.Type)
 		f.lastType = generator.Type
+
+		if len(typeArguments) > 0 && len(generator.TypeArguments) == 0 {
+			generator.TypeArguments = typeArguments
+		}
+		if len(fields) > 0 && len(generator.Fields) == 0 {
+			generator.Fields = fields
+		}
 	}
 	return nil
 }
@@ -251,6 +399,7 @@ func (f *generatorFactory) inspectTypeSpec(spec *ast.TypeSpec) error {
 		return nil
 	}
 
+	generator.Type = spec.Name.Name
 	if spec.TypeParams != nil {
 		for _, typeParam := range spec.TypeParams.List {
 			for _, name := range typeParam.Names {
@@ -259,23 +408,35 @@ func (f *generatorFactory) inspectTypeSpec(spec *ast.TypeSpec) error {
 		}
 	}
 
-	// FIXME: handle the type parameter case, we should add type parameter on receiver.
+	generator.FileName = f.curFileName
 	generator.GeneratorType = GeneratorTypeStructure
-	for _, field := range structType.Fields.List {
+	fields, err := f.parseFields(structType.Fields.List)
+	if err != nil {
+		return fmt.Errorf("f.parseFields: %w", err)
+	}
+
+	generator.Fields = fields
+	return nil
+}
+
+func (f *generatorFactory) parseFields(fieldList []*ast.Field) ([]Field, error) {
+	var fields []Field
+	for _, field := range fieldList {
 		if len(field.Names) == 0 {
 			continue
 		}
 
 		typeStr, err := parseNode(f.curFset, field.Type)
 		if err != nil {
-			return fmt.Errorf("parseNode: %w", err)
+			return nil, fmt.Errorf("parseNode: %w", err)
 		}
 
 		for _, name := range field.Names {
-			generator.Fields[name.Name] = typeStr
+			debug.Printf("parse field name: %s, type: %s", name, typeStr)
+			fields = append(fields, Field{name.Name, typeStr})
 		}
 	}
-	return nil
+	return fields, nil
 }
 
 func (f *generatorFactory) inspectFunctionDeclaration(decl *ast.FuncDecl) error {
@@ -323,6 +484,19 @@ func (f *generatorFactory) inspectFunctionDeclaration(decl *ast.FuncDecl) error 
 }
 
 // help functions
+
+func parseTypeArguments(expr ast.Expr) []string {
+	args := make([]string, 0)
+	if expr, ok := expr.(*ast.IndexExpr); ok {
+		args = append(args, fmt.Sprint(expr.Index))
+	}
+	if expr, ok := expr.(*ast.IndexListExpr); ok {
+		for _, index := range expr.Indices {
+			args = append(args, fmt.Sprint(index))
+		}
+	}
+	return args
+}
 
 func parseNode(fset *token.FileSet, node any) (string, error) {
 	var buf bytes.Buffer

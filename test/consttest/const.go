@@ -1,24 +1,24 @@
 package consttest
 
-//go:generate goaccessor -t Pi -g
+//go:generate go run ../../. -t Pi -g
 const Pi float64 = 3.14159265358979323846
 
-//go:generate goaccessor -t zero -g
+//go:generate go run ../../. -t zero -g
 const zero = 0.0 // untyped floating-point constant
 
-//go:generate goaccessor -t a,b,c -g
+//go:generate go run ../../. -t a,b,c -g
 const a, b, c = 3, 4, "foo" // a = 3, b = 4, c = "foo", untyped integer and string constants
 
-//go:generate goaccessor -t u,v -g
+//go:generate go run ../../. -t u,v -g
 const u, v float32 = 0, 3 // u = 0.0, v = 3.0
 
-//go:generate goaccessor -t size,eof -g
+//go:generate go run ../../. -t size,eof -g
 const (
 	size int64 = 1024
 	eof        = -1 // untyped integer constant
 )
 
-//go:generate goaccessor -t Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Partyday,numberOfDays -g
+//go:generate go run ../../. -t Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Partyday,numberOfDays -g
 const (
 	Sunday = iota
 	Monday

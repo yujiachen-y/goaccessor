@@ -12,7 +12,7 @@ import (
 
 var debug *log.Logger
 
-func init() {
+func setupLogger() {
 	if os.Getenv("DEBUG") != "" {
 		debug = log.New(os.Stderr, "DEBUG: ", log.Ldate|log.Ltime|log.Lshortfile)
 	} else {
@@ -20,7 +20,20 @@ func init() {
 	}
 	log.SetFlags(0)
 	log.SetPrefix("goaccessor: ")
+}
 
+var (
+	flagTargets  []string
+	flagGetter   bool
+	flagSetter   bool
+	flagField    bool
+	flagPrefix   string
+	flagIncludes []string
+	flagExcludes []string
+	argDir       string
+)
+
+func parseFlags() {
 	t := flag.String("t", "", "")
 	target := flag.String("target", "", "")
 	g := flag.Bool("g", false, "")
@@ -29,6 +42,8 @@ func init() {
 	setter := flag.Bool("setter", false, "")
 	a := flag.Bool("a", false, "")
 	accessor := flag.Bool("accessor", false, "")
+	f := flag.Bool("f", false, "")
+	field := flag.Bool("field", false, "")
 	p := flag.String("p", "", "")
 	prefix := flag.String("prefix", "", "")
 	i := flag.String("i", "", "")
@@ -46,6 +61,8 @@ func init() {
 		fmt.Fprintf(os.Stderr, "\t\tGenerate `setter` for the target.\n")
 		fmt.Fprintf(os.Stderr, "\t--accessor -a getter\n")
 		fmt.Fprintf(os.Stderr, "\t\tGenerate `accessor` for the target.\n")
+		fmt.Fprintf(os.Stderr, "\t--field -f getter\n")
+		fmt.Fprintf(os.Stderr, "\t\tApply the command (`getter`, `setter`, `accessor`) to each field of the target (only works for struct type variables).\n")
 		fmt.Fprintf(os.Stderr, "\t--prefix -p string\n")
 		fmt.Fprintf(os.Stderr, "\t\tAdd a prefix to the generated methods/functions.\n")
 		fmt.Fprintf(os.Stderr, "\t--include -i string\n")
@@ -78,6 +95,8 @@ func init() {
 		flag.Usage()
 		os.Exit(2)
 	}
+
+	flagField = *f || *field
 
 	if *p != "" {
 		flagPrefix = *p
@@ -113,23 +132,21 @@ func init() {
 	}
 }
 
-var (
-	flagTargets  []string
-	flagGetter   bool
-	flagSetter   bool
-	flagPrefix   string
-	flagIncludes []string
-	flagExcludes []string
-	argDir       string
-)
-
 func main() {
+	setupLogger()
+	parseFlags()
+
 	log.Printf("Received arguments:\n")
 	log.Printf("\t\tflagTargets %s\n", flagTargets)
 	log.Printf("\t\tflagGetter %t\n", flagGetter)
+	log.Printf("\t\tflagSetter %t\n", flagSetter)
+	log.Printf("\t\tflagField %t\n", flagField)
+	log.Printf("\t\tflagPrefix %s\n", flagPrefix)
+	log.Printf("\t\tflagIncludes %s\n", flagIncludes)
+	log.Printf("\t\tflagExcludes %s\n", flagExcludes)
 	log.Printf("\t\targDir %s\n", argDir)
 
-	generators, err := NewGenerators(flagTargets, argDir)
+	generators, err := NewGenerators(flagTargets, argDir, flagField)
 	if err != nil {
 		log.Fatalf("Failed to create generators, error: %s", err.Error())
 	}

@@ -6,7 +6,7 @@ package structtest
 
 type S struct{}
 
-//go:generate goaccessor -t Normal -a
+//go:generate go run ../../. -t Normal -a -i a,B,c,D,e,f
 type Normal struct {
 	a, B int
 	c    *int64
@@ -21,7 +21,7 @@ func (n *Normal) SetE(e map[string]complex128) {
 	n.e = e
 }
 
-//go:generate goaccessor -t Generic -a
+//go:generate go run ../../. -t Generic -a -e a
 type Generic[T, U any] struct {
 	a, B int
 	c    *int64
