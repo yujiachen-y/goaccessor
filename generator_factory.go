@@ -88,9 +88,11 @@ func (f *generatorFactory) initGenerators(targets []string) error {
 	generators := make(map[string]*Generator, len(targets))
 	for _, target := range targets {
 		generators[target] = &Generator{
-			Name: target,
-			Dir:  f.dir,
-			Pkg:  f.pkg,
+			Name:    target,
+			Dir:     f.dir,
+			Pkg:     f.pkg,
+			Fields:  make(map[string]string),
+			Methods: make(map[string]struct{}),
 		}
 	}
 
@@ -156,6 +158,7 @@ func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 			continue
 		}
 
+		generator.GeneratorType = GeneratorTypeVariable
 		generator.Type = specType
 		if generator.Type == "" {
 			if i >= len(spec.Values) {
@@ -238,14 +241,88 @@ func (f *generatorFactory) parseUnaryExpression(expr *ast.UnaryExpr) (string, er
 }
 
 func (f *generatorFactory) inspectTypeSpec(spec *ast.TypeSpec) error {
-	// TODO implement this later
+	generator, ok := f.generators[spec.Name.Name]
+	if !ok {
+		return nil
+	}
+
+	structType, ok := spec.Type.(*ast.StructType)
+	if !ok {
+		return nil
+	}
+
+	if spec.TypeParams != nil {
+		for _, typeParam := range spec.TypeParams.List {
+			for _, name := range typeParam.Names {
+				generator.TypeParams = append(generator.TypeParams, name.Name)
+			}
+		}
+	}
+
+	// FIXME: handle the type parameter case, we should add type parameter on receiver.
+	generator.GeneratorType = GeneratorTypeStructure
+	for _, field := range structType.Fields.List {
+		if len(field.Names) == 0 {
+			continue
+		}
+
+		typeStr, err := parseNode(f.curFset, field.Type)
+		if err != nil {
+			return fmt.Errorf("parseNode: %w", err)
+		}
+
+		for _, name := range field.Names {
+			generator.Fields[name.Name] = typeStr
+		}
+	}
 	return nil
 }
 
 func (f *generatorFactory) inspectFunctionDeclaration(decl *ast.FuncDecl) error {
-	// TODO implement this later
+	if decl.Recv == nil {
+		return nil
+	}
+
+	if len(decl.Recv.List) != 1 {
+		return fmt.Errorf("expected one receiver, got %d", len(decl.Recv.List))
+	}
+	receiver := decl.Recv.List[0]
+
+	t := receiver.Type
+	// handler pointer
+	if starExpr, ok := t.(*ast.StarExpr); ok {
+		debug.Printf("inspect t as *ast.StarExpr\n")
+		t = starExpr.X
+	}
+	// handler type parameters
+	if indexExpr, ok := t.(*ast.IndexExpr); ok {
+		debug.Printf("inspect t as *ast.IndexExpr\n")
+		t = indexExpr.X
+	}
+	if indexListExpr, ok := t.(*ast.IndexListExpr); ok {
+		debug.Printf("inspect t as *ast.IndexListExpr\n")
+		t = indexListExpr.X
+	}
+	ident, ok := t.(*ast.Ident)
+	if !ok {
+		return fmt.Errorf("unexpected receiver type: %T", t)
+	}
+	recvTypeName := ident.Name
+
+	generator, ok := f.generators[recvTypeName]
+	if !ok {
+		return nil
+	}
+
+	if names := receiver.Names; len(names) > 0 {
+		generator.ReceiverName = names[0].Name
+	}
+	generator.Methods[decl.Name.Name] = struct{}{}
+
 	return nil
 }
+
+// help functions
 
 func parseNode(fset *token.FileSet, node any) (string, error) {
 	var buf bytes.Buffer

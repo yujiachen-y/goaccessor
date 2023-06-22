@@ -29,6 +29,12 @@ func init() {
 	setter := flag.Bool("setter", false, "")
 	a := flag.Bool("a", false, "")
 	accessor := flag.Bool("accessor", false, "")
+	p := flag.String("p", "", "")
+	prefix := flag.String("prefix", "", "")
+	i := flag.String("i", "", "")
+	include := flag.String("include", "", "")
+	e := flag.String("e", "", "")
+	exclude := flag.String("exclude", "", "")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of goaccessor:\n")
@@ -40,6 +46,12 @@ func init() {
 		fmt.Fprintf(os.Stderr, "\t\tGenerate `setter` for the target.\n")
 		fmt.Fprintf(os.Stderr, "\t--accessor -a getter\n")
 		fmt.Fprintf(os.Stderr, "\t\tGenerate `accessor` for the target.\n")
+		fmt.Fprintf(os.Stderr, "\t--prefix -p string\n")
+		fmt.Fprintf(os.Stderr, "\t\tAdd a prefix to the generated methods/functions.\n")
+		fmt.Fprintf(os.Stderr, "\t--include -i string\n")
+		fmt.Fprintf(os.Stderr, "\t\tGenerate methods only for the specified fields (fields should be comma-separated).\n")
+		fmt.Fprintf(os.Stderr, "\t--exclude -e string\n")
+		fmt.Fprintf(os.Stderr, "\t\tExclude specified fields from method generation (fields should be comma-separated).\n")
 		fmt.Fprintf(os.Stderr, "For more information, see:\n")
 		fmt.Fprintf(os.Stderr, "\thttps://www.github.com/yjc567/goaccessor\n")
 	}
@@ -67,6 +79,24 @@ func init() {
 		os.Exit(2)
 	}
 
+	if *p != "" {
+		flagPrefix = *p
+	} else if *prefix != "" {
+		flagPrefix = *prefix
+	}
+
+	if len(*i) != 0 {
+		flagIncludes = strings.Split(*i, ",")
+	} else if len(*include) != 0 {
+		flagIncludes = strings.Split(*include, ",")
+	}
+
+	if len(*e) != 0 {
+		flagExcludes = strings.Split(*e, ",")
+	} else if len(*exclude) != 0 {
+		flagExcludes = strings.Split(*exclude, ",")
+	}
+
 	args := flag.Args()
 	if len(args) == 0 {
 		args = []string{"."}
@@ -84,10 +114,13 @@ func init() {
 }
 
 var (
-	flagTargets []string
-	flagGetter  bool
-	flagSetter  bool
-	argDir      string
+	flagTargets  []string
+	flagGetter   bool
+	flagSetter   bool
+	flagPrefix   string
+	flagIncludes []string
+	flagExcludes []string
+	argDir       string
 )
 
 func main() {
@@ -104,7 +137,13 @@ func main() {
 	log.Println()
 	for _, generator := range generators {
 		log.Printf("generate %s ...\n", generator.Name)
-		err := generator.Generate(WithGetter(flagGetter), WithSetter(flagSetter))
+		err := generator.Generate(
+			WithGetter(flagGetter),
+			WithSetter(flagSetter),
+			WithPrefix(flagPrefix),
+			WithIncludes(flagIncludes),
+			WithExcludes(flagExcludes),
+		)
 		if err != nil {
 			log.Fatalf("Failed to generate, error: %s", err.Error())
 		}

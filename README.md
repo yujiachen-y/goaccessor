@@ -68,7 +68,7 @@ func SetBooks(newBooks map[string]*Book) {
 In certain cases, you might want to export specific fields of a top-level variable with a prefix:
 
 ``` go
-//go:generate goaccessor --target bestSellingBook --field-getter --include Author --prefix BestSelling
+//go:generate goaccessor --target bestSellingBook --field --getter --include Author --prefix BestSelling
 var bestSellingBook = &Book{ ... }
 ```
 
@@ -91,8 +91,6 @@ Here are the available options for `goaccessor`:
 | --setter | -s | Generate `setter` for the target. |
 | --accessor | -a | Generate both `getter` and `setter` for the target. |
 | --prefix | -p | Add a prefix to the generated methods/functions. |
-| --field-getter | -fg | Generate `getter`s for each field of the target. |
-| --field-setter | -fs | Generate `setter`s for each field of the target. |
-| --field-accessor | -fa | Generate both `getter`s and `setter`s for each field of the target. |
+| --field | -f | Apply the command (`getter`, `setter`, `accessor`) to each field of the target (only works for struct type variables). |
 | --include | -i | Generate methods only for the specified fields (fields should be comma-separated). |
 | --exclude | -e | Exclude specified fields from method generation (fields should be comma-separated). |
