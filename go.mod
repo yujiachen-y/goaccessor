@@ -1,4 +1,4 @@
-module github.com/yjc567/goaccessor
+module github.com/yujiachen-y/goaccessor
 
 go 1.18
 

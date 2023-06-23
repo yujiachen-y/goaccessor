@@ -5,7 +5,7 @@ package consttest
 import (
 	"testing"
 
-	"github.com/yjc567/goaccessor/test/utils"
+	"github.com/yujiachen-y/goaccessor/test/utils"
 )
 
 func TestConstGet(t *testing.T) {

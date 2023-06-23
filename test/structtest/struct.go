@@ -1,7 +1,9 @@
 // structtest contains only cases we support. Other cases like the following are
 // related to type inference which is beyond the scope of this package.
-// - `type equal = struct_type_from_other_package_or_current_package`
-// - `type alias struct_type_from_other_package_or_current_package`
+//
+//    type equal = struct_type_from_other_package_or_current_package
+//    type alias struct_type_from_other_package_or_current_package
+//
 package structtest
 
 type S struct{}

@@ -3,7 +3,7 @@ package vartest
 import (
 	"testing"
 
-	"github.com/yjc567/goaccessor/test/utils"
+	"github.com/yujiachen-y/goaccessor/test/utils"
 )
 
 func TestGetVar(t *testing.T) {
