@@ -225,3 +225,13 @@ func TestAnonymous5(t *testing.T) {
 		}
 	}
 }
+
+func TestPure(t *testing.T) {
+	for _, verifier := range []utils.Verifier{
+		utils.NewSetterVerifier(&pure.pure, SetPure, 2),
+	} {
+		if err := verifier(); err != nil {
+			t.Errorf("got error: %s", err.Error())
+		}
+	}
+}

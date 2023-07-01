@@ -36,6 +36,9 @@ var (
 var hello = &struct{ hello string }{}
 var world *Struct
 
+//go:generate go run ../../. -t pure1,Pure2 -a -pg
+var pure1, Pure2 int
+
 /*
 Supporting type inference is beyond the scope.
 

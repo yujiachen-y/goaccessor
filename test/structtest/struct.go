@@ -44,3 +44,8 @@ func (g *Generic[_, _]) GetB() int {
 func (g *Generic[T, U]) SetU(u U) {
 	g.u = u
 }
+
+//go:generate go run ../../. -t pure -a -pg
+type pure struct {
+	hello, World int
+}

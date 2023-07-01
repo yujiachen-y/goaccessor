@@ -103,12 +103,14 @@ func GetBestSellingAuthor() string {
 | --getter | -g | 为目标生成`getter`。 |
 | --setter | -s | 为目标生成`setter`。 |
 | --accessor | -a | 为目标生成`getter`和`setter`。 |
+| --pure-getter | -pg | 为目标生成不带 'Get' 前缀的`getter`。 |
 | --prefix | -p | 给生成的方法/函数添加前缀。 |
-| --field | -f | 将标记（`getter`，`setter`，`accessor`）应用到
-
-目标的每个字段（仅适用于结构类型变量）。 |
+| --field | -f | 将标记（`getter`，`setter`，`accessor`）应用到目标的每个字段（仅适用于结构类型变量）。 |
 | --include | -i | 只为指定的字段生成方法（字段应以逗号分隔）。 |
 | --exclude | -e | 从方法生成中排除指定的字段（字段应以逗号分隔）。 |
+
+请注意，当使用`--pure-getter`选项时，生成的getter方法将不会有 'Get' 前缀。
+例如，对于有`Title`字段的`Book`结构体，getter将会是 `Title()` 而不是 `GetTitle()`。 
 
 ## 依赖管理
 

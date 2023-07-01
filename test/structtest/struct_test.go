@@ -64,3 +64,16 @@ func TestGeneric(t *testing.T) {
 		}
 	}
 }
+
+func TestPure(t *testing.T) {
+	p := pure{}
+	for _, verifier := range []utils.Verifier{
+		utils.NewSetterVerifier(&p.hello, p.SetHello, 2),
+		utils.NewGetterVerifier(p.Hello, 2),
+		utils.NewSetterVerifier(&p.World, p.SetWorld, 3),
+	} {
+		if err := verifier(); err != nil {
+			t.Errorf("got error: %s", err.Error())
+		}
+	}
+}

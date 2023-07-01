@@ -25,6 +25,7 @@ func TestGetVar(t *testing.T) {
 		utils.NewMapGetterVerifier(GetM2, m2),
 		utils.NewGetterVerifier(GetHello, hello),
 		utils.NewGetterVerifier(GetWorld, world),
+		utils.NewGetterVerifier(Pure1, pure1),
 	} {
 		if err := verifier(); err != nil {
 			t.Errorf("got err: %s", err.Error())
@@ -51,6 +52,8 @@ func TestSetVar(t *testing.T) {
 		utils.NewMapSetterVerifier(&m2, SetM2, map[int]*Struct{17: {}, 18: {}}),
 		utils.NewPointSetterVerifier(&hello, SetHello, struct{ hello string }{"world"}),
 		utils.NewPointSetterVerifier(&world, SetWorld, Struct{}),
+		utils.NewSetterVerifier(&pure1, SetPure1, 19),
+		utils.NewSetterVerifier(&Pure2, SetPure2, 20),
 	} {
 		if err := verifier(); err != nil {
 			t.Errorf("got err: %s", err.Error())

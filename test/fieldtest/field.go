@@ -60,3 +60,10 @@ var anonymous3, anonymous4 struct {
 var anonymous5 *struct {
 	quite, difficult string
 }
+
+type Pure struct {
+	pure int
+}
+
+//go:generate go run ../../. -t pure -a -pg -f
+var pure Pure

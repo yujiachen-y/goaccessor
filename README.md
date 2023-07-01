@@ -105,10 +105,14 @@ Here are the available options for `goaccessor`:
 | --getter | -g | Generate `getter` for the target. |
 | --setter | -s | Generate `setter` for the target. |
 | --accessor | -a | Generate both `getter` and `setter` for the target. |
+| --pure-getter | -pg | Generate `getter` without 'Get' prefix for the target. |
 | --prefix | -p | Add a prefix to the generated methods/functions. |
 | --field | -f | Apply the flag (`getter`, `setter`, `accessor`) to each field of the target (only applicable for struct type variables). |
 | --include | -i | Generate methods only for the specified fields (fields should be comma-separated). |
 | --exclude | -e | Exclude specified fields from method generation (fields should be comma-separated). |
+
+Remember, when using the `--pure-getter` option, the generated getter methods won't have a 'Get' prefix.
+For instance, for a `Book` struct with a `Title` field, the getter will be `Title()` instead of `GetTitle()`. 
 
 ## Dependency Management
 

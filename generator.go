@@ -9,11 +9,12 @@ import (
 )
 
 type options struct {
-	getter   bool
-	setter   bool
-	prefix   string
-	includes map[string]struct{}
-	excludes map[string]struct{}
+	getter     bool
+	setter     bool
+	pureGetter bool
+	prefix     string
+	includes   map[string]struct{}
+	excludes   map[string]struct{}
 }
 
 type optionsFn func(*options)
@@ -27,6 +28,12 @@ func WithGetter(v bool) optionsFn {
 func WithSetter(v bool) optionsFn {
 	return func(o *options) {
 		o.setter = v
+	}
+}
+
+func WithPureGetter(v bool) optionsFn {
+	return func(o *options) {
+		o.pureGetter = v
 	}
 }
 
@@ -166,11 +173,15 @@ func (g *Generator) getPackageCodeLines() (cl codeLines) {
 }
 
 func (g *Generator) getVarCodeLines() (cl codeLines) {
-	if g.opts.getter {
+	getMethodName := concat(g.GetPrefix(), g.opts.prefix, g.Name)
+	if g.opts.getter && getMethodName != g.Name {
 		cl = cl.Append("")
-		cl = cl.Append("func %s() %s {", concat("get", g.opts.prefix, g.Name), g.Type)
+		cl = cl.Append("func %s() %s {", getMethodName, g.Type)
 		cl = cl.Append("        return %s", g.Name)
 		cl = cl.Append("}")
+	} else if g.opts.getter {
+		cl = cl.Append("")
+		cl = cl.Append("// %s already exists", getMethodName)
 	}
 
 	if g.opts.setter {
@@ -197,9 +208,8 @@ func (g *Generator) getStructCodeLines() (cl codeLines) {
 			}
 		}
 
-		getMethodName := concat("get", g.opts.prefix, fieldName)
-		_, ok := g.Methods[getMethodName]
-		if g.opts.getter && !ok {
+		getMethodName := concat(g.GetPrefix(), g.opts.prefix, fieldName)
+		if g.opts.getter && !g.IsNameExist(getMethodName) {
 			cl = cl.Append("")
 			cl = cl.Append("func (%s *%s) %s() %s {", g.getReceiverName(), g.getReceiverType(), getMethodName, fieldType)
 			cl = cl.Append("        return %s.%s", g.getReceiverName(), fieldName)
@@ -210,8 +220,7 @@ func (g *Generator) getStructCodeLines() (cl codeLines) {
 		}
 
 		setMethodName := concat("set", g.opts.prefix, fieldName)
-		_, ok = g.Methods[setMethodName]
-		if g.opts.setter && !ok {
+		if g.opts.setter && !g.IsNameExist(setMethodName) {
 			cl = cl.Append("")
 			cl = cl.Append("func (%s *%s) %s(%s %s) {", g.getReceiverName(), g.getReceiverType(), setMethodName, g.newValueName(), fieldType)
 			cl = cl.Append("        %s.%s = %s", g.getReceiverName(), fieldName, g.newValueName())
@@ -242,9 +251,8 @@ func (g *Generator) getFieldCodeLines() (cl codeLines) {
 		// check type arguments
 		fieldType = g.fillTypeArguments(fieldType)
 
-		getMethodName := concat("get", g.opts.prefix, fieldName)
-		_, ok := g.Methods[getMethodName]
-		if g.opts.getter && !ok {
+		getMethodName := concat(g.GetPrefix(), g.opts.prefix, fieldName)
+		if g.opts.getter && getMethodName != g.Name && getMethodName != g.Type {
 			cl = cl.Append("")
 			cl = cl.Append("func %s() %s {", getMethodName, fieldType)
 			cl = cl.Append("        return %s.%s", g.Name, fieldName)
@@ -255,15 +263,11 @@ func (g *Generator) getFieldCodeLines() (cl codeLines) {
 		}
 
 		setMethodName := concat("set", g.opts.prefix, fieldName)
-		_, ok = g.Methods[setMethodName]
-		if g.opts.setter && !ok {
+		if g.opts.setter {
 			cl = cl.Append("")
 			cl = cl.Append("func %s(%s %s) {", setMethodName, g.newValueName(), fieldType)
 			cl = cl.Append("        %s.%s = %s", g.Name, fieldName, g.newValueName())
 			cl = cl.Append("}")
-		} else if g.opts.setter {
-			cl = cl.Append("")
-			cl = cl.Append("// %s already exists", setMethodName)
 		}
 	}
 	return
@@ -316,6 +320,25 @@ func (g *Generator) writeFile(cl codeLines) error {
 
 func (g *Generator) FilePath() string {
 	return filepath.Join(g.Dir, g.FileName+strings.ToLower(g.Name)+"_goaccessor.go")
+}
+
+func (g *Generator) GetPrefix() string {
+	if g.opts.pureGetter {
+		return ""
+	}
+	return "get"
+}
+
+func (g *Generator) IsNameExist(name string) bool {
+	if _, ok := g.Methods[name]; ok {
+		return true
+	}
+	for _, field := range g.Fields {
+		if field.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // helper functions
