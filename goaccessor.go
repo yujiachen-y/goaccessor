@@ -255,23 +255,22 @@ func main() {
 	setupLogger()
 	parseFlags()
 
-	log.Printf("Received arguments:\n")
-	log.Printf("\t\tflagTargets %s\n", flagTargets)
-	log.Printf("\t\tflagGetter %t\n", flagGetter)
-	log.Printf("\t\tflagSetter %t\n", flagSetter)
-	log.Printf("\t\tflagPureGetter %t\n", flagPureGetter)
-	log.Printf("\t\tflagField %t\n", flagField)
-	log.Printf("\t\tflagPrefix %s\n", flagPrefix)
-	log.Printf("\t\tflagIncludes %s\n", flagIncludes)
-	log.Printf("\t\tflagExcludes %s\n", flagExcludes)
-	log.Printf("\t\targDir %s\n", argDir)
+	debug.Printf("Received arguments:\n")
+	debug.Printf("\t\tflagTargets %s\n", flagTargets)
+	debug.Printf("\t\tflagGetter %t\n", flagGetter)
+	debug.Printf("\t\tflagSetter %t\n", flagSetter)
+	debug.Printf("\t\tflagPureGetter %t\n", flagPureGetter)
+	debug.Printf("\t\tflagField %t\n", flagField)
+	debug.Printf("\t\tflagPrefix %s\n", flagPrefix)
+	debug.Printf("\t\tflagIncludes %s\n", flagIncludes)
+	debug.Printf("\t\tflagExcludes %s\n", flagExcludes)
+	debug.Printf("\t\targDir %s\n", argDir)
 
 	generators, err := NewGenerators(flagTargets, argDir, flagField)
 	if err != nil {
 		log.Fatalf("Failed to create generators, error: %s", err.Error())
 	}
 
-	log.Println()
 	for _, generator := range generators {
 		log.Printf("generate %s ...\n", generator.Name)
 		err := generator.Generate(
