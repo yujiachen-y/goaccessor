@@ -17,9 +17,11 @@ type generatorFactory struct {
 	pkg        string
 	generators map[string]*Generator
 
-	curFileName string
-	curFset     *token.FileSet
-	lastType    string
+	curFileName     string
+	curFset         *token.FileSet
+	curImports      []string
+	curNamedImports map[string]string
+	lastType        string
 }
 
 func NewGenerators(targets []string, dir string, field bool) ([]*Generator, error) {
@@ -191,6 +193,7 @@ func (f *generatorFactory) insertVariablesGenerators(variables map[string]*Gener
 			Methods:       t.Methods,
 			GeneratorType: GeneratorTypeField,
 			FileName:      v.FileName,
+			Imports:       v.Imports,
 		}
 		debug.Printf("Insert new variable %+v\n", newVariables[k])
 	}
@@ -199,9 +202,20 @@ func (f *generatorFactory) insertVariablesGenerators(variables map[string]*Gener
 }
 
 func (f *generatorFactory) inspectDeclaration(file *ast.File) error {
+	f.curImports = make([]string, 0)
+	f.curNamedImports = make(map[string]string, 0)
+	undeclaredGenerators := make([]*Generator, 0, len(f.generators))
+	for _, g := range f.generators {
+		if g.Type == "" {
+			undeclaredGenerators = append(undeclaredGenerators, g)
+		}
+	}
+
 	var err error
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch decl := n.(type) {
+		case *ast.ImportSpec:
+			err = f.inspectImportSpecification(decl)
 		case *ast.GenDecl:
 			err = f.inspectGenericDeclaration(decl)
 			if err != nil {
@@ -217,7 +231,44 @@ func (f *generatorFactory) inspectDeclaration(file *ast.File) error {
 		}
 		return true
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	// The new declared generators should inspect imports for its types.
+	for _, g := range undeclaredGenerators {
+		if g.Type == "" {
+			continue
+		}
+		if err := g.InspectImports(f.curImports, f.curNamedImports); err != nil {
+			return fmt.Errorf("g.InspectImports %v %v: %w", f.curImports, f.curNamedImports, err)
+		}
+	}
+	return nil
+}
+
+func (f *generatorFactory) inspectImportSpecification(decl *ast.ImportSpec) error {
+	path, err := parseNode(f.curFset, decl.Path)
+	if err != nil {
+		return fmt.Errorf("parseNode: %w", err)
+	}
+
+	name := ""
+	if decl.Name != nil {
+		name = decl.Name.String()
+	}
+	if name == "_" || name == "." {
+		// FIXME: explicit cases should be considered, but we ignore them for simplicity.
+		return nil
+	}
+
+	if name != "" {
+		f.curNamedImports[name] = fmt.Sprintf("%s %s", name, path)
+		return nil
+	}
+
+	f.curImports = append(f.curImports, path)
+	return nil
 }
 
 func (f *generatorFactory) inspectGenericDeclaration(decl *ast.GenDecl) error {
@@ -252,7 +303,10 @@ func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 			t = expr.X
 		}
 		// handler type arguments
-		typeArguments = parseTypeArguments(t)
+		typeArguments, err = parseTypeArguments(f.curFset, t)
+		if err != nil {
+			return fmt.Errorf("parseTypeArguments: %w", err)
+		}
 
 		// handler anonymous structs
 		if structType, ok := t.(*ast.StructType); ok {
@@ -299,7 +353,10 @@ func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 				if lit, ok := v.X.(*ast.CompositeLit); ok {
 					// handler type arguments
 					debug.Printf("type of lit.Type is %T", lit.Type)
-					generator.TypeArguments = parseTypeArguments(lit.Type)
+					generator.TypeArguments, err = parseTypeArguments(f.curFset, lit.Type)
+					if err != nil {
+						return fmt.Errorf("parseTypeArguments: %w", err)
+					}
 					// handler anonymous struct fields
 					if structType, ok := lit.Type.(*ast.StructType); ok {
 						fields, err := f.parseFields(structType.Fields.List)
@@ -321,7 +378,10 @@ func (f *generatorFactory) inspectValueSpec(spec *ast.ValueSpec) error {
 				kind = s
 
 				// handler type arguments
-				generator.TypeArguments = parseTypeArguments(v.Type)
+				generator.TypeArguments, err = parseTypeArguments(f.curFset, v.Type)
+				if err != nil {
+					return fmt.Errorf("parseTypeArguments: %w", err)
+				}
 				// handler anonymous struct fields
 				if structType, ok := v.Type.(*ast.StructType); ok {
 					fields, err := f.parseFields(structType.Fields.List)
@@ -485,17 +545,25 @@ func (f *generatorFactory) inspectFunctionDeclaration(decl *ast.FuncDecl) error 
 
 // help functions
 
-func parseTypeArguments(expr ast.Expr) []string {
+func parseTypeArguments(fset *token.FileSet, expr ast.Expr) ([]string, error) {
 	args := make([]string, 0)
 	if expr, ok := expr.(*ast.IndexExpr); ok {
-		args = append(args, fmt.Sprint(expr.Index))
+		arg, err := parseNode(fset, expr.Index)
+		if err != nil {
+			return nil, fmt.Errorf("parseNode: %w", err)
+		}
+		args = append(args, arg)
 	}
 	if expr, ok := expr.(*ast.IndexListExpr); ok {
 		for _, index := range expr.Indices {
-			args = append(args, fmt.Sprint(index))
+			arg, err := parseNode(fset, index)
+			if err != nil {
+				return nil, fmt.Errorf("parseNode: %w", err)
+			}
+			args = append(args, arg)
 		}
 	}
-	return args
+	return args, nil
 }
 
 func parseNode(fset *token.FileSet, node any) (string, error) {
