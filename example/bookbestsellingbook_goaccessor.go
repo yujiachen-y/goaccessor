@@ -3,5 +3,5 @@
 package main
 
 func GetBestSellingAuthor() string {
-        return bestSellingBook.author
+	return bestSellingBook.author
 }

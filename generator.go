@@ -381,6 +381,7 @@ func (g *Generator) fillTypeArguments(t string) string {
 	}
 	return t
 }
+
 func (g *Generator) writeFile(cl codeLines) error {
 	var sb strings.Builder
 	for _, line := range cl {

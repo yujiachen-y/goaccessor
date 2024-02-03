@@ -3,17 +3,17 @@
 package main
 
 func (b *Book) GetTitle() string {
-        return b.title
+	return b.title
 }
 
 func (b *Book) SetTitle(v string) {
-        b.title = v
+	b.title = v
 }
 
 func (b *Book) GetAuthor() string {
-        return b.author
+	return b.author
 }
 
 func (b *Book) SetAuthor(v string) {
-        b.author = v
+	b.author = v
 }

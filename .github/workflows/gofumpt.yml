@@ -1,0 +1,27 @@
+name: gofumpt
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  gofumpt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: "1.18"
+      - name: Install gofumpt
+        run: go install mvdan.cc/gofumpt@latest
+      - name: Check formatting with gofumpt
+        run: |
+          if [ -n "$(gofumpt -l .)" ]; then
+            echo "The following files are not formatted with gofumpt:"
+            gofumpt -l .
+            exit 1
+          fi

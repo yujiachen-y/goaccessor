@@ -1,8 +1,8 @@
 // fieldtest contains only cases we support. Other cases like the following
 // which refers to other package is beyond the scope of this package.
 //
-//    var a struct_type_from_other_package
-//    var b = struct_type_from_other_package{}
+//	var a struct_type_from_other_package
+//	var b = struct_type_from_other_package{}
 //
 // Please note, field accessors are only supported for struct types. And we
 // don't support nil or concurrent access checking.

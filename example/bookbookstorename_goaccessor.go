@@ -3,5 +3,5 @@
 package main
 
 func GetBookStoreName() string {
-        return bookStoreName
+	return bookStoreName
 }
