@@ -1,0 +1,27 @@
+name: Check go.mod and go.sum
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  go-mod-tidy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "^1.18"
+
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Run go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
