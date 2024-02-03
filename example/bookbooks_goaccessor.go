@@ -3,9 +3,9 @@
 package main
 
 func GetBooks() map[string]*Book {
-        return books
+	return books
 }
 
 func SetBooks(v map[string]*Book) {
-        books = v
+	books = v
 }
