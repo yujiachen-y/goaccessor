@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"go/format"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -380,19 +381,28 @@ func (g *Generator) fillTypeArguments(t string) string {
 	}
 	return t
 }
-
 func (g *Generator) writeFile(cl codeLines) error {
+	var sb strings.Builder
+	for _, line := range cl {
+		_, err := fmt.Fprintf(&sb, line.format+"\n", line.a...)
+		if err != nil {
+			return fmt.Errorf("fmt.Fprintf(%s, %v): %w", line.format, line.a, err)
+		}
+	}
+
+	formatted, err := format.Source([]byte(sb.String()))
+	if err != nil {
+		return fmt.Errorf("format.Source: %w", err)
+	}
+
 	f, err := os.Create(g.FilePath())
 	if err != nil {
 		return fmt.Errorf("os.Create(%s): %w", g.FilePath(), err)
 	}
 	defer f.Close()
 
-	for _, line := range cl {
-		_, err := fmt.Fprintf(f, line.format+"\n", line.a...)
-		if err != nil {
-			return fmt.Errorf("fmt.Fprintf(%s, %v): %w", line.format, line.a, err)
-		}
+	if _, err := f.Write(formatted); err != nil {
+		return fmt.Errorf("f.Write: %w", err)
 	}
 	return nil
 }
